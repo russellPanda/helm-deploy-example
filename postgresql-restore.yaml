@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgresql-backup-script
+  namespace: default
+data:
+  backup.sh: |
+    #!/bin/bash
+
+    # 数据库连接信息
+    DB_HOST=<PostgreSQL服务地址>
+    DB_NAME=mydatabase
+    DB_USER=postgres
+    DB_PASSWORD=<PostgreSQL密码>
+
+    # 备份文件存储路径
+    BACKUP_DIR=/backups
+
+    # 确保备份目录存在
+    if [ ! -d "$BACKUP_DIR" ]; then
+      echo "Backup directory $BACKUP_DIR does not exist."
+      exit 1
+    fi
+
+    # 找到最新的备份文件
+    LATEST_BACKUP=$(ls -t $BACKUP_DIR/test_backup_*.sql | head -1)
+
+    if [ -z "$LATEST_BACKUP" ]; then
+      echo "No backup files found in $BACKUP_DIR."
+      exit 1
+    fi
+
+    echo "Restoring from the latest backup: $LATEST_BACKUP"
+
+    # 执行恢复命令
+    PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "TRUNCATE TABLE test RESTART IDENTITY;"
+    PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f $LATEST_BACKUP
+
+    echo "Restore completed."
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: postgres-backup
+            image: postgres-backup:latest
+            envFrom:
+              - configMapRef:
+                  name: postgres-config
+            command: ["sh","-c","/home/backup.sh"]
+            volumeMounts:
+            - name: backup-volume
+              mountPath: /backups
+            - name: postgresql-script
+              mountPath: /home
+          restartPolicy: OnFailure
+          volumes:
+          - name: backup-volume
+            hostPath:
+              path: /mnt/data/backup
+          - name: postgresql-script
+            configMap:
+              name: postgresql-backup-script
+              items:
+              - key: backup.sh
+                path: backup.sh
