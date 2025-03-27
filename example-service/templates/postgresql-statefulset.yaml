@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: myapp-postgresql
+  labels:
+    app: postgresql
+    chart: postgresql-0.2.5
+    release: "myapp"
+    heritage: "Helm"
+spec:
+  serviceName: myapp-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+      release: "myapp"
+  template:
+    metadata:
+      name: myapp-postgresql
+      labels:
+        app: "postgresql"
+        chart: postgresql-0.2.5
+        release: "myapp"
+        heritage: "Helm"
+    spec:
+      initContainers:
+      - name: init-chmod-data
+        image: "debian:buster-slim"
+        imagePullPolicy: "Always"
+        resources:
+          {}
+        command:
+          - sh
+          - -c
+          - |
+            mkdir -p /var/lib/postgresql/data
+            chmod 700 /var/lib/postgresql/data
+            find /var/lib/postgresql -mindepth 1 -maxdepth 1 -not -name ".snapshot" -not -name "lost+found" | \
+              xargs chown -R 1001:1001
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql
+          subPath:
+      containers:
+      - name: myapp-postgresql
+        image: "postgres:11.5"
+        imagePullPolicy: "IfNotPresent"
+        envFrom:
+          - configMapRef:
+              name: postgres-config
+        ports:
+        - name: postgresql
+          containerPort: 5432
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+          subPath:
+          readOnly: false
+      volumes:
+  volumeClaimTemplates:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: postgresql
+      spec:
+        storageClassName: local-storage
