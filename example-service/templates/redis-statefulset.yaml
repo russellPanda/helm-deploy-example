@@ -1,0 +1,63 @@
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: redis-cluster
+  namespace: my-namespace
+  labels:
+    app: redis-cluster
+spec:
+  replicas: 1
+  serviceName: redis-service
+  selector:
+    matchLabels:
+      app: redis-cluster
+  template:
+    metadata:
+      labels:
+        app: redis-cluster
+    spec:
+
+      containers:
+        - name: redis-container
+          image: 'registry.yourimages.com/redis:6.2.5'
+          command:
+            - redis-server
+          args:
+            - /etc/redis/redis.conf
+          ports:
+            - name: redis-port
+              containerPort: 6379
+              protocol: TCP
+          resources: {}
+          volumeMounts:
+            - name: redis-pvc
+              mountPath: /data
+            - name: volume-ji63m6
+              readOnly: true
+              mountPath: /etc/redis
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: IfNotPresent
+      restartPolicy: Always
+      dnsPolicy: ClusterFirst
+      volumes:
+        - name: redis-volume
+          configMap:
+            name: redis-conf
+            items:
+              - key: redis.conf
+                path: redis.conf
+            defaultMode: 420
+  volumeClaimTemplates:
+    - kind: PersistentVolumeClaim
+      apiVersion: v1
+      metadata:
+        name: redis-pvc
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: local-storage
+        volumeMode: Filesystem

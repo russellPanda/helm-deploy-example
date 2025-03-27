@@ -1,0 +1,30 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: redis-service-headless
+  labels:
+    app: redis
+spec:
+  ports:
+    - name: redis-port
+      port: 6379
+  selector:
+    app: redis-cluster
+  clusterIP: None
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service-nodeport
+  labels:
+    app: redis
+spec:
+  type: NodePort
+  ports:
+  - port: 6379
+    targetPort: 6379
+    protocol: TCP
+    name: redis-port
+  selector:
+   app: redis
